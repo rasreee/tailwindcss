@@ -17,6 +17,7 @@ import {
   position,
   lineWidth,
 } from './dataTypes'
+import negateValue from './negateValue'
 
 export function applyStateToMarker(selector, marker, state, join) {
   let markerIdx = selector.search(new RegExp(`${marker}[:[]`))
@@ -167,6 +168,16 @@ export function transformLastClasses(transformClass, { wrap, withRule } = {}) {
   }
 }
 
+function resolveArbitraryValue(modifier, validate) {
+  let value = modifier.slice(1, -1)
+
+  if (!validate(value)) {
+    return undefined
+  }
+
+  return normalize(value)
+}
+
 export function asValue(modifier, lookup = {}, { validate = () => true } = {}) {
   let value = lookup[modifier]
 
@@ -174,17 +185,34 @@ export function asValue(modifier, lookup = {}, { validate = () => true } = {}) {
     return value
   }
 
+  if (modifier.startsWith('-')) {
+    let sliced = modifier.slice(1)
+
+    let positiveValue = lookup[sliced]
+    if (positiveValue !== undefined) {
+      let negativeValue = negateValue(positiveValue)
+      if (negativeValue === positiveValue) {
+        return undefined
+      }
+      return negativeValue
+    }
+
+    if (isArbitraryValue(sliced)) {
+      let resolved = resolveArbitraryValue(sliced, validate)
+
+      if (resolved === undefined) {
+        return undefined
+      }
+
+      return negateValue(resolveArbitraryValue(sliced, validate))
+    }
+  }
+
   if (!isArbitraryValue(modifier)) {
     return undefined
   }
 
-  value = modifier.slice(1, -1)
-
-  if (!validate(value)) {
-    return undefined
-  }
-
-  return normalize(value)
+  return resolveArbitraryValue(modifier, validate)
 }
 
 function isArbitraryValue(input) {
